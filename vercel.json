@@ -1,7 +1,5 @@
 {
   "framework": "vite"
-}
-{
   "scripts": {
     "build": "vite build"
   }
