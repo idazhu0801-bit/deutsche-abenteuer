@@ -1,0 +1,392 @@
+import { useState, useEffect, useRef } from "react";
+
+const COLORS = {
+  primary: "#534AB7",
+  primaryLight: "#EEEDFE",
+  primaryMid: "#7F77DD",
+  teal: "#1D9E75",
+  tealLight: "#E1F5EE",
+  coral: "#D85A30",
+  coralLight: "#FAECE7",
+  amber: "#BA7517",
+  amberLight: "#FAEEDA",
+  gray: "#888780",
+  grayLight: "#F1EFE8",
+};
+
+const SCENES = [
+  { id: "supermarket", icon: "🛒", name: "Supermarkt", level: "A2", dialogues: [
+    { de: "Entschuldigung, wo finde ich die Milch?", en: "Excuse me, where can I find the milk?", hint: "Asking for help" },
+    { de: "Was kostet das, bitte?", en: "How much does this cost, please?", hint: "Asking the price" },
+    { de: "Haben Sie das in Bio?", en: "Do you have that in organic?", hint: "Asking for organic" },
+    { de: "Ich hätte gerne eine Tüte.", en: "I'd like a bag, please.", hint: "Requesting a bag" },
+  ]},
+  { id: "station", icon: "🚂", name: "Bahnhof", level: "A2", dialogues: [
+    { de: "Wann fährt der nächste Zug nach Berlin?", en: "When does the next train to Berlin leave?", hint: "Asking about departure" },
+    { de: "Eine Fahrkarte nach München, bitte.", en: "One ticket to Munich, please.", hint: "Buying a ticket" },
+    { de: "Ist dieser Platz noch frei?", en: "Is this seat still free?", hint: "Asking for a seat" },
+    { de: "Der Zug hat Verspätung.", en: "The train is delayed.", hint: "Reporting delay" },
+  ]},
+  { id: "cafe", icon: "☕", name: "Café", level: "A2", dialogues: [
+    { de: "Ich nehme einen Kaffee mit Milch.", en: "I'll have a coffee with milk.", hint: "Ordering coffee" },
+    { de: "Die Rechnung, bitte.", en: "The bill, please.", hint: "Asking for the bill" },
+    { de: "Haben Sie WLAN hier?", en: "Do you have WiFi here?", hint: "Asking for WiFi" },
+  ]},
+  { id: "doctor", icon: "🏥", name: "Arztpraxis", level: "B1", dialogues: [
+    { de: "Ich habe seit drei Tagen Kopfschmerzen.", en: "I've had a headache for three days.", hint: "Describing symptoms" },
+    { de: "Mir ist schwindelig.", en: "I feel dizzy.", hint: "Expressing dizziness" },
+    { de: "Ich bin allergisch gegen Penizillin.", en: "I'm allergic to penicillin.", hint: "Allergy information" },
+  ]},
+  { id: "bank", icon: "🏦", name: "Bank", level: "B1", dialogues: [
+    { de: "Ich möchte ein Konto eröffnen.", en: "I'd like to open an account.", hint: "Opening an account" },
+    { de: "Wo kann ich Geld abheben?", en: "Where can I withdraw money?", hint: "Finding an ATM" },
+    { de: "Ich habe meine Karte verloren.", en: "I've lost my card.", hint: "Reporting lost card" },
+  ]},
+];
+
+const VOCAB_SETS = [
+  { theme: "Im Supermarkt", words: [
+    { de: "die Milch", en: "milk" }, { de: "das Brot", en: "bread" },
+    { de: "die Butter", en: "butter" }, { de: "der Käse", en: "cheese" },
+    { de: "das Gemüse", en: "vegetables" }, { de: "das Obst", en: "fruit" },
+  ]},
+  { theme: "Reisen", words: [
+    { de: "der Zug", en: "train" }, { de: "der Bahnhof", en: "train station" },
+    { de: "die Fahrkarte", en: "ticket" }, { de: "der Koffer", en: "suitcase" },
+    { de: "abfahren", en: "to depart" }, { de: "ankommen", en: "to arrive" },
+  ]},
+  { theme: "Gefühle", words: [
+    { de: "froh", en: "happy" }, { de: "traurig", en: "sad" },
+    { de: "müde", en: "tired" }, { de: "aufgeregt", en: "excited" },
+    { de: "ängstlich", en: "anxious" }, { de: "neugierig", en: "curious" },
+  ]},
+];
+
+const GRAMMAR_EXERCISES = [
+  { q: "Ich ___ heute sehr müde.", options: ["bin", "bist", "ist", "sind"], answer: 0, hint: "sein (to be) — ich form" },
+  { q: "___ du Kaffee oder Tee?", options: ["Möchtet", "Möchtest", "Möchte", "Möchten"], answer: 1, hint: "möchten — du form" },
+  { q: "Das ist ___ Buch meines Vaters.", options: ["dem", "des", "die", "das"], answer: 1, hint: "Genitive case — masculine" },
+  { q: "Wir ___ gestern ins Kino gegangen.", options: ["haben", "sind", "war", "hatten"], answer: 1, hint: "Perfekt with 'gehen' uses sein" },
+  { q: "Er kauft ___ Apfel.", options: ["einen", "eine", "einem", "ein"], answer: 0, hint: "Akkusativ — der Apfel → einen" },
+];
+
+const CULTURE_ITEMS = [
+  { type: "show", title: "Dark", phrase: "Wir sind ein Kreis.", translation: "We are a circle.", note: "Netflix thriller — Winden, 1953/2019/2053. Time loops & family secrets." },
+  { type: "show", title: "Babylon Berlin", phrase: "Die Stadt schläft nie.", translation: "The city never sleeps.", note: "Weimar Republic Berlin, 1929. Jazz, crime, politics." },
+  { type: "music", title: "Rammstein — Sonne", phrase: "Hier kommt die Sonne.", translation: "Here comes the sun.", note: "Industrial metal. Sonne = sun. Also: Mond (moon), Stern (star)." },
+  { type: "literature", title: "Goethe — Faust", phrase: "Zwei Seelen wohnen in meiner Brust.", translation: "Two souls dwell in my breast.", note: "The ultimate German classic. Inner conflict as literary theme." },
+  { type: "music", title: "Die Toten Hosen", phrase: "Alles wird gut.", translation: "Everything will be alright.", note: "Punk rock from Düsseldorf. gut = good/well." },
+  { type: "literature", title: "Schiller — Die Räuber", phrase: "Das Gesetz hat noch keinen großen Mann gebildet.", translation: "The law has yet to form a great man.", note: "1781. Freedom vs. authority — a founding text of German Romanticism." },
+];
+
+function Avatar({ name, job, city }) {
+  const initials = name ? name.split(" ").map(w => w[0]).join("").slice(0,2).toUpperCase() : "?";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ width: 40, height: 40, borderRadius: "50%", background: COLORS.primaryLight, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 500, fontSize: 15, color: COLORS.primary, border: `1.5px solid ${COLORS.primaryMid}` }}>{initials}</div>
+      <div>
+        <div style={{ fontWeight: 500, fontSize: 14 }}>{name || "Kein Name"}</div>
+        <div style={{ fontSize: 12, color: COLORS.gray }}>{job} · {city}</div>
+      </div>
+    </div>
+  );
+}
+
+function PetWidget({ xp, petName, setPetName }) {
+  const stage = xp < 50 ? 0 : xp < 150 ? 1 : xp < 300 ? 2 : 3;
+  const stageEmoji = ["🥚", "🐣", "🐕", "🐕‍🦺"][stage];
+  const stageLabel = ["Ei", "Baby", "Junghund", "Ausgewachsen"][stage];
+  const nextXp = [50, 150, 300, 999][stage];
+  const [renaming, setRenaming] = useState(false);
+  const [input, setInput] = useState(petName);
+  return (
+    <div style={{ background: COLORS.amberLight, borderRadius: 14, padding: "14px 18px", border: `1px solid #FAC775`, marginBottom: 16 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+        <div style={{ fontSize: 36 }}>{stageEmoji}</div>
+        <div>
+          <div style={{ fontWeight: 500, color: COLORS.amber, fontSize: 15 }}>{petName} <span style={{ fontSize: 11, background: "#FAC775", borderRadius: 6, padding: "2px 7px", color: COLORS.amber }}>{stageLabel}</span></div>
+          <div style={{ fontSize: 12, color: "#856" }}>XP: {xp} / {nextXp === 999 ? "Max" : nextXp}</div>
+        </div>
+        <button onClick={() => setRenaming(r => !r)} style={{ marginLeft: "auto", fontSize: 11, padding: "4px 10px", borderRadius: 8, border: `1px solid #FAC775`, background: "white", cursor: "pointer", color: COLORS.amber }}>umbenennen</button>
+      </div>
+      {renaming && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+          <input value={input} onChange={e => setInput(e.target.value)} placeholder="Neuer Name..." style={{ flex: 1, padding: "4px 8px", borderRadius: 8, border: `1px solid #FAC775`, fontSize: 13 }} />
+          <button onClick={() => { setPetName(input); setRenaming(false); }} style={{ padding: "4px 10px", borderRadius: 8, background: COLORS.amber, color: "white", border: "none", cursor: "pointer", fontSize: 12 }}>OK</button>
+        </div>
+      )}
+      <div style={{ fontSize: 11, color: "#856" }}>Lerne mehr, damit {petName} wächst! 🦴</div>
+    </div>
+  );
+}
+
+export default function App() {
+  const [screen, setScreen] = useState("onboarding");
+  const [profile, setProfile] = useState({ name: "", job: "", city: "", level: "A2" });
+  const [tab, setTab] = useState("scenes");
+  const [xp, setXp] = useState(0);
+  const [petName, setPetName] = useState("Bello");
+
+  const [selectedScene, setSelectedScene] = useState(null);
+  const [dialogueIdx, setDialogueIdx] = useState(0);
+  const [showTranslation, setShowTranslation] = useState(false);
+
+  const [vocabSet, setVocabSet] = useState(0);
+  const [cardIdx, setCardIdx] = useState(0);
+  const [flipped, setFlipped] = useState(false);
+
+  const [gIdx, setGIdx] = useState(0);
+  const [selected, setSelected] = useState(null);
+  const [showHint, setShowHint] = useState(false);
+  const [grammarScore, setGrammarScore] = useState(0);
+
+  const [chatMessages, setChatMessages] = useState([{ role: "assistant", text: "Hallo! Ich bin hier, um dir beim Deutschlernen zu helfen. Schreib mir auf Deutsch — ich antworte und korrigiere freundlich! 🇩🇪" }]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef(null);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMessages]);
+
+  const [cultureIdx, setCultureIdx] = useState(0);
+
+  const addXp = (n) => setXp(x => x + n);
+
+  function handleOnboard() {
+    if (!profile.name) return;
+    setScreen("main");
+  }
+
+  async function sendChat() {
+    if (!chatInput.trim() || chatLoading) return;
+    const userMsg = chatInput.trim();
+    setChatInput("");
+    setChatMessages(m => [...m, { role: "user", text: userMsg }]);
+    setChatLoading(true);
+    try {
+      const history = chatMessages.map(m => ({ role: m.role === "assistant" ? "assistant" : "user", content: m.text }));
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": "在这里填入你的API_KEY",
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1000,
+          system: `Du bist ein freundlicher Deutschlehrer für ${profile.level}-Lernende. Der Lernende heißt ${profile.name} und wohnt in ${profile.city}. Führe Gespräche auf Deutsch. Wenn der Lernende Fehler macht, korrigiere sie sanft am Ende deiner Antwort in Klammern auf Deutsch. Bleibe freundlich, ermutigend und nutze einfaches Vokabular für das Niveau ${profile.level}. Antworte immer auf Deutsch, korrigiere auf Deutsch.`,
+          messages: [...history, { role: "user", content: userMsg }],
+        }),
+      });
+      const data = await res.json();
+      const text = data.content?.map(c => c.text || "").join("") || "Entschuldigung, ich konnte nicht antworten.";
+      setChatMessages(m => [...m, { role: "assistant", text }]);
+      addXp(5);
+    } catch {
+      setChatMessages(m => [...m, { role: "assistant", text: "Fehler beim Verbinden. Bitte versuche es nochmal." }]);
+    }
+    setChatLoading(false);
+  }
+
+  const TAB_ICONS = [
+    { id: "scenes", icon: "🏙️", label: "Szenen" },
+    { id: "vocab", icon: "📚", label: "Wörter" },
+    { id: "grammar", icon: "✏️", label: "Grammatik" },
+    { id: "culture", icon: "🎬", label: "Kultur" },
+    { id: "chat", icon: "💬", label: "KI-Chat" },
+  ];
+
+  if (screen === "onboarding") {
+    return (
+      <div style={{ maxWidth: 480, margin: "0 auto", padding: "2rem 1.5rem" }}>
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{ fontSize: 48, marginBottom: 8 }}>🇩🇪</div>
+          <h1 style={{ fontSize: 26, fontWeight: 500, color: COLORS.primary, margin: 0 }}>Deutsche Abenteuer</h1>
+          <p style={{ color: COLORS.gray, fontSize: 14, marginTop: 6 }}>Erstelle dein Profil und beginne dein Abenteuer</p>
+        </div>
+        <div style={{ background: "white", borderRadius: 16, border: "0.5px solid #e0e0e0", padding: "1.5rem" }}>
+          <label style={{ fontSize: 13, color: COLORS.gray, display: "block", marginBottom: 4 }}>Dein Name</label>
+          <input value={profile.name} onChange={e => setProfile(p => ({...p, name: e.target.value}))} placeholder="z.B. Maria" style={{ width: "100%", marginBottom: 14, boxSizing: "border-box" }} />
+          <label style={{ fontSize: 13, color: COLORS.gray, display: "block", marginBottom: 4 }}>Beruf / Rolle</label>
+          <input value={profile.job} onChange={e => setProfile(p => ({...p, job: e.target.value}))} placeholder="z.B. Studentin, Lehrer, Ingenieur..." style={{ width: "100%", marginBottom: 14, boxSizing: "border-box" }} />
+          <label style={{ fontSize: 13, color: COLORS.gray, display: "block", marginBottom: 4 }}>Deine Stadt</label>
+          <input value={profile.city} onChange={e => setProfile(p => ({...p, city: e.target.value}))} placeholder="z.B. Berlin, München, Wien..." style={{ width: "100%", marginBottom: 14, boxSizing: "border-box" }} />
+          <label style={{ fontSize: 13, color: COLORS.gray, display: "block", marginBottom: 4 }}>Dein Niveau</label>
+          <select value={profile.level} onChange={e => setProfile(p => ({...p, level: e.target.value}))} style={{ width: "100%", marginBottom: 20, boxSizing: "border-box" }}>
+            <option value="A2">A2 — Grundlagen</option>
+            <option value="B1">B1 — Mittelstufe</option>
+            <option value="B2">B2 — Fortgeschritten</option>
+          </select>
+          <button onClick={handleOnboard} style={{ width: "100%", padding: "10px 0", background: COLORS.primary, color: "white", border: "none", borderRadius: 10, fontSize: 15, cursor: "pointer", fontWeight: 500 }}>
+            Abenteuer beginnen 🚀
+          </button>
+        </div>
+        <p style={{ textAlign: "center", fontSize: 12, color: COLORS.gray, marginTop: 16 }}>Du bekommst auch einen virtuellen Hund als Begleiter 🐕</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ maxWidth: 620, margin: "0 auto", padding: "0 0 80px" }}>
+      <div style={{ padding: "14px 18px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "0.5px solid #eee" }}>
+        <Avatar name={profile.name} job={profile.job} city={profile.city} />
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 12, color: COLORS.gray }}>XP gesamt</div>
+          <div style={{ fontWeight: 500, color: COLORS.primary, fontSize: 18 }}>{xp} ⭐</div>
+        </div>
+      </div>
+
+      <div style={{ padding: "14px 18px" }}>
+        <PetWidget xp={xp} petName={petName} setPetName={setPetName} />
+
+        <div style={{ display: "flex", gap: 6, marginBottom: 20, overflowX: "auto", paddingBottom: 4 }}>
+          {TAB_ICONS.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)} style={{ flex: "0 0 auto", padding: "6px 12px", borderRadius: 20, border: tab === t.id ? `1.5px solid ${COLORS.primary}` : "1px solid #e0e0e0", background: tab === t.id ? COLORS.primaryLight : "white", color: tab === t.id ? COLORS.primary : COLORS.gray, fontSize: 13, cursor: "pointer", fontWeight: tab === t.id ? 500 : 400 }}>
+              {t.icon} {t.label}
+            </button>
+          ))}
+        </div>
+
+        {tab === "scenes" && !selectedScene && (
+          <div>
+            <h2 style={{ fontSize: 17, fontWeight: 500, marginBottom: 14, marginTop: 0 }}>Wähle eine Szene</h2>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {SCENES.map(s => (
+                <div key={s.id} onClick={() => { setSelectedScene(s); setDialogueIdx(0); setShowTranslation(false); }} style={{ background: "white", border: "0.5px solid #e0e0e0", borderRadius: 14, padding: "16px", cursor: "pointer" }}>
+                  <div style={{ fontSize: 30, marginBottom: 8 }}>{s.icon}</div>
+                  <div style={{ fontWeight: 500, fontSize: 14 }}>{s.name}</div>
+                  <div style={{ fontSize: 12, color: COLORS.gray, marginTop: 4 }}>Niveau {s.level} · {s.dialogues.length} Sätze</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {tab === "scenes" && selectedScene && (
+          <div>
+            <button onClick={() => setSelectedScene(null)} style={{ fontSize: 13, color: COLORS.primary, background: "none", border: "none", cursor: "pointer", marginBottom: 14, padding: 0 }}>← Zurück</button>
+            <div style={{ background: COLORS.primaryLight, borderRadius: 14, padding: "20px", marginBottom: 16, border: `1px solid ${COLORS.primaryMid}` }}>
+              <div style={{ fontSize: 28, marginBottom: 8 }}>{selectedScene.icon}</div>
+              <div style={{ fontSize: 11, color: COLORS.primaryMid, marginBottom: 6 }}>{selectedScene.dialogues[dialogueIdx].hint}</div>
+              <div style={{ fontSize: 20, fontWeight: 500, color: COLORS.primary, marginBottom: 10 }}>{selectedScene.dialogues[dialogueIdx].de}</div>
+              {showTranslation
+                ? <div style={{ fontSize: 15, color: COLORS.teal }}>{selectedScene.dialogues[dialogueIdx].en}</div>
+                : <button onClick={() => setShowTranslation(true)} style={{ fontSize: 13, color: COLORS.gray, background: "none", border: "1px dashed #ccc", borderRadius: 8, padding: "4px 12px", cursor: "pointer" }}>Übersetzung zeigen</button>
+              }
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button disabled={dialogueIdx === 0} onClick={() => { setDialogueIdx(i => i-1); setShowTranslation(false); }} style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: "1px solid #e0e0e0", background: "white", cursor: "pointer", fontSize: 14 }}>← Vorheriger</button>
+              <button onClick={() => {
+                if (dialogueIdx < selectedScene.dialogues.length - 1) {
+                  setDialogueIdx(i => i+1); setShowTranslation(false); addXp(3);
+                } else {
+                  addXp(10); setSelectedScene(null);
+                }
+              }} style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: "none", background: COLORS.primary, color: "white", cursor: "pointer", fontSize: 14, fontWeight: 500 }}>
+                {dialogueIdx < selectedScene.dialogues.length - 1 ? "Nächster →" : "Fertig! ✓"}
+              </button>
+            </div>
+            <div style={{ textAlign: "center", fontSize: 12, color: COLORS.gray, marginTop: 10 }}>{dialogueIdx + 1} / {selectedScene.dialogues.length}</div>
+          </div>
+        )}
+
+        {tab === "vocab" && (
+          <div>
+            <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+              {VOCAB_SETS.map((v, i) => (
+                <button key={i} onClick={() => { setVocabSet(i); setCardIdx(0); setFlipped(false); }} style={{ fontSize: 12, padding: "5px 12px", borderRadius: 20, border: vocabSet === i ? `1.5px solid ${COLORS.teal}` : "1px solid #e0e0e0", background: vocabSet === i ? COLORS.tealLight : "white", color: vocabSet === i ? COLORS.teal : COLORS.gray, cursor: "pointer" }}>{v.theme}</button>
+              ))}
+            </div>
+            <div onClick={() => setFlipped(f => !f)} style={{ background: flipped ? COLORS.tealLight : "white", border: `1.5px solid ${flipped ? COLORS.teal : "#e0e0e0"}`, borderRadius: 16, padding: "40px 20px", textAlign: "center", cursor: "pointer", minHeight: 120, transition: "background 0.2s" }}>
+              <div style={{ fontSize: 11, color: COLORS.gray, marginBottom: 8 }}>{flipped ? "Englisch" : "Deutsch"} — klicken zum Umdrehen</div>
+              <div style={{ fontSize: 26, fontWeight: 500, color: flipped ? COLORS.teal : COLORS.primary }}>
+                {flipped ? VOCAB_SETS[vocabSet].words[cardIdx].en : VOCAB_SETS[vocabSet].words[cardIdx].de}
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+              <button disabled={cardIdx === 0} onClick={() => { setCardIdx(i => i-1); setFlipped(false); }} style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: "1px solid #e0e0e0", background: "white", cursor: "pointer" }}>←</button>
+              <button onClick={() => { setCardIdx(i => (i+1) % VOCAB_SETS[vocabSet].words.length); setFlipped(false); addXp(2); }} style={{ flex: 2, padding: "9px 0", borderRadius: 10, background: COLORS.teal, color: "white", border: "none", cursor: "pointer", fontWeight: 500 }}>Nächste Karte +2 XP</button>
+            </div>
+            <div style={{ textAlign: "center", fontSize: 12, color: COLORS.gray, marginTop: 8 }}>{cardIdx + 1} / {VOCAB_SETS[vocabSet].words.length}</div>
+          </div>
+        )}
+
+        {tab === "grammar" && (
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+              <h2 style={{ fontSize: 17, fontWeight: 500, margin: 0 }}>Grammatikübung</h2>
+              <div style={{ fontSize: 13, color: COLORS.teal, fontWeight: 500 }}>Punkte: {grammarScore}</div>
+            </div>
+            <div style={{ background: COLORS.primaryLight, borderRadius: 14, padding: "20px", marginBottom: 16 }}>
+              <div style={{ fontSize: 11, color: COLORS.gray, marginBottom: 8 }}>Frage {gIdx + 1} von {GRAMMAR_EXERCISES.length}</div>
+              <div style={{ fontSize: 19, fontWeight: 500, color: COLORS.primary }}>{GRAMMAR_EXERCISES[gIdx].q}</div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+              {GRAMMAR_EXERCISES[gIdx].options.map((opt, i) => {
+                let bg = "white", border = "1px solid #e0e0e0", color = "#333";
+                if (selected !== null) {
+                  if (i === GRAMMAR_EXERCISES[gIdx].answer) { bg = COLORS.tealLight; border = `1.5px solid ${COLORS.teal}`; color = COLORS.teal; }
+                  else if (i === selected) { bg = "#FCEBEB"; border = "1.5px solid #E24B4A"; color = "#A32D2D"; }
+                }
+                return <button key={i} disabled={selected !== null} onClick={() => { setSelected(i); if (i === GRAMMAR_EXERCISES[gIdx].answer) { setGrammarScore(s => s+10); addXp(10); } }} style={{ padding: "12px", borderRadius: 10, border, background: bg, color, fontSize: 15, cursor: "pointer", fontWeight: 500 }}>{opt}</button>;
+              })}
+            </div>
+            {selected !== null && (
+              <div style={{ background: "#EAF3DE", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "#3B6D11", marginBottom: 14 }}>
+                💡 {GRAMMAR_EXERCISES[gIdx].hint}
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setShowHint(h => !h)} style={{ flex: 1, padding: "9px 0", borderRadius: 10, border: "1px solid #e0e0e0", background: "white", fontSize: 13, cursor: "pointer" }}>Tipp</button>
+              <button disabled={selected === null} onClick={() => { setGIdx(i => (i+1) % GRAMMAR_EXERCISES.length); setSelected(null); setShowHint(false); }} style={{ flex: 2, padding: "9px 0", borderRadius: 10, background: selected !== null ? COLORS.primary : "#ccc", color: "white", border: "none", cursor: "pointer", fontWeight: 500 }}>Nächste Frage →</button>
+            </div>
+            {showHint && <div style={{ marginTop: 10, fontSize: 13, color: COLORS.gray, padding: "8px 12px", background: COLORS.grayLight, borderRadius: 8 }}>{GRAMMAR_EXERCISES[gIdx].hint}</div>}
+          </div>
+        )}
+
+        {tab === "culture" && (
+          <div>
+            <h2 style={{ fontSize: 17, fontWeight: 500, marginBottom: 14, marginTop: 0 }}>Kultur & Medien</h2>
+            <div style={{ display: "flex", gap: 8, marginBottom: 16, overflowX: "auto" }}>
+              {CULTURE_ITEMS.map((c, i) => (
+                <button key={i} onClick={() => setCultureIdx(i)} style={{ flex: "0 0 auto", fontSize: 12, padding: "5px 12px", borderRadius: 20, border: cultureIdx === i ? `1.5px solid ${COLORS.coral}` : "1px solid #e0e0e0", background: cultureIdx === i ? COLORS.coralLight : "white", color: cultureIdx === i ? COLORS.coral : COLORS.gray, cursor: "pointer" }}>
+                  {c.type === "show" ? "📺" : c.type === "music" ? "🎵" : "📖"} {c.title.split("—")[0].trim()}
+                </button>
+              ))}
+            </div>
+            <div style={{ background: COLORS.coralLight, borderRadius: 16, padding: "22px", border: `1px solid #F5C4B3` }}>
+              <div style={{ fontSize: 11, color: COLORS.coral, marginBottom: 6, fontWeight: 500 }}>{CULTURE_ITEMS[cultureIdx].type === "show" ? "📺 SERIE" : CULTURE_ITEMS[cultureIdx].type === "music" ? "🎵 MUSIK" : "📖 LITERATUR"}</div>
+              <div style={{ fontSize: 16, fontWeight: 500, color: "#711", marginBottom: 4 }}>{CULTURE_ITEMS[cultureIdx].title}</div>
+              <div style={{ fontSize: 22, fontWeight: 500, color: COLORS.coral, margin: "14px 0 6px" }}>„{CULTURE_ITEMS[cultureIdx].phrase}"</div>
+              <div style={{ fontSize: 14, color: "#993C1D", marginBottom: 14, fontStyle: "italic" }}>{CULTURE_ITEMS[cultureIdx].translation}</div>
+              <div style={{ fontSize: 13, color: "#711", lineHeight: 1.6 }}>{CULTURE_ITEMS[cultureIdx].note}</div>
+            </div>
+            <button onClick={() => { setCultureIdx(i => (i+1) % CULTURE_ITEMS.length); addXp(4); }} style={{ width: "100%", marginTop: 14, padding: "10px 0", borderRadius: 10, background: COLORS.coral, color: "white", border: "none", cursor: "pointer", fontWeight: 500, fontSize: 14 }}>Nächstes +4 XP →</button>
+          </div>
+        )}
+
+        {tab === "chat" && (
+          <div>
+            <h2 style={{ fontSize: 17, fontWeight: 500, marginBottom: 4, marginTop: 0 }}>KI-Gespräch auf Deutsch</h2>
+            <div style={{ fontSize: 12, color: COLORS.gray, marginBottom: 14 }}>Übe mit KI — Fehler werden freundlich korrigiert</div>
+            <div style={{ background: "#fafafa", border: "0.5px solid #e0e0e0", borderRadius: 14, padding: "12px", minHeight: 260, maxHeight: 340, overflowY: "auto", marginBottom: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+              {chatMessages.map((m, i) => (
+                <div key={i} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+                  <div style={{ maxWidth: "80%", padding: "10px 14px", borderRadius: 14, background: m.role === "user" ? COLORS.primary : "white", color: m.role === "user" ? "white" : "#333", fontSize: 14, border: m.role === "user" ? "none" : "0.5px solid #e0e0e0", lineHeight: 1.5 }}>
+                    {m.text}
+                  </div>
+                </div>
+              ))}
+              {chatLoading && <div style={{ fontSize: 13, color: COLORS.gray, padding: "6px 14px" }}>antwortet...</div>}
+              <div ref={chatEndRef} />
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => e.key === "Enter" && sendChat()} placeholder="Schreib auf Deutsch..." style={{ flex: 1 }} />
+              <button onClick={sendChat} disabled={chatLoading} style={{ padding: "0 18px", borderRadius: 10, background: COLORS.primary, color: "white", border: "none", cursor: "pointer", fontWeight: 500, fontSize: 14 }}>→</button>
+            </div>
+            <div style={{ fontSize: 11, color: COLORS.gray, marginTop: 8 }}>Jede Nachricht = +5 XP 🌟</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
